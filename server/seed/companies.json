@@ -1,0 +1,52 @@
+[
+  {
+    "name": "TCS", "industry": "IT Services", "tier": "safe",
+    "roles": [{ "title": "System Engineer", "requiredSkills": ["Java", "SQL", "HTML", "CSS", "Aptitude"], "preferredSkills": ["Python", "JavaScript"], "minCGPA": 6.0, "interviewRounds": ["Aptitude", "Technical", "HR"] }],
+    "hiringPattern": { "typicalMonths": [8, 9], "avgCandidatesSelected": 150, "selectionRate": 0.45 }
+  },
+  {
+    "name": "Infosys", "industry": "IT Services", "tier": "safe",
+    "roles": [{ "title": "Systems Engineer", "requiredSkills": ["Java", "Python", "DBMS", "Software Engineering"], "preferredSkills": ["React", "Node.js"], "minCGPA": 6.5, "interviewRounds": ["Online Test", "Technical", "HR"] }],
+    "hiringPattern": { "typicalMonths": [9, 10], "avgCandidatesSelected": 120, "selectionRate": 0.40 }
+  },
+  {
+    "name": "Wipro", "industry": "IT Services", "tier": "safe",
+    "roles": [{ "title": "Project Engineer", "requiredSkills": ["Java", "Testing", "SQL", "OS"], "preferredSkills": ["Cloud", "Linux"], "minCGPA": 6.0, "interviewRounds": ["Aptitude", "Technical", "HR"] }],
+    "hiringPattern": { "typicalMonths": [9, 10], "avgCandidatesSelected": 100, "selectionRate": 0.35 }
+  },
+  {
+    "name": "HCL", "industry": "IT Services", "tier": "safe",
+    "roles": [{ "title": "Software Engineer", "requiredSkills": ["C++", "Networking", "Linux", "SQL"], "preferredSkills": ["Java"], "minCGPA": 6.5, "interviewRounds": ["Aptitude", "Technical", "HR"] }],
+    "hiringPattern": { "typicalMonths": [10, 11], "avgCandidatesSelected": 80, "selectionRate": 0.30 }
+  },
+  {
+    "name": "Cognizant", "industry": "IT Consulting", "tier": "target",
+    "roles": [{ "title": "Programmer Analyst", "requiredSkills": ["Java", "Spring Boot", "Microservices", "SQL"], "preferredSkills": ["React", "AWS"], "minCGPA": 7.0, "interviewRounds": ["Aptitude", "Technical 1", "Technical 2", "HR"] }],
+    "hiringPattern": { "typicalMonths": [8], "avgCandidatesSelected": 60, "selectionRate": 0.20 }
+  },
+  {
+    "name": "Capgemini", "industry": "IT Consulting", "tier": "target",
+    "roles": [{ "title": "Senior Analyst", "requiredSkills": ["Python", "Cloud", "DevOps", "SQL"], "preferredSkills": ["Docker", "Kubernetes"], "minCGPA": 6.5, "interviewRounds": ["Pseudo Code", "English", "Technical", "HR"] }],
+    "hiringPattern": { "typicalMonths": [9], "avgCandidatesSelected": 50, "selectionRate": 0.18 }
+  },
+  {
+    "name": "Tech Mahindra", "industry": "IT Services", "tier": "target",
+    "roles": [{ "title": "Software Developer", "requiredSkills": ["React", "Node.js", "MongoDB", "Express"], "preferredSkills": ["TypeScript", "Git"], "minCGPA": 6.5, "interviewRounds": ["Aptitude", "Technical", "HR"] }],
+    "hiringPattern": { "typicalMonths": [10], "avgCandidatesSelected": 40, "selectionRate": 0.22 }
+  },
+  {
+    "name": "Amazon", "industry": "E-Commerce", "tier": "dream",
+    "roles": [{ "title": "SDE-1", "requiredSkills": ["DSA", "System Design", "Java", "Python", "Algorithms"], "preferredSkills": ["AWS", "Distributed Systems"], "minCGPA": 7.5, "interviewRounds": ["Online Assessment", "Technical 1", "Technical 2", "Bar Raiser"] }],
+    "hiringPattern": { "typicalMonths": [7, 8], "avgCandidatesSelected": 10, "selectionRate": 0.03 }
+  },
+  {
+    "name": "Microsoft", "industry": "Software", "tier": "dream",
+    "roles": [{ "title": "Software Engineer", "requiredSkills": ["DSA", "OOP", "C++", "C#", "OS"], "preferredSkills": ["Azure", "System Design"], "minCGPA": 8.0, "interviewRounds": ["Online Coding", "Technical 1", "Technical 2", "As-Approp"] }],
+    "hiringPattern": { "typicalMonths": [7, 8], "avgCandidatesSelected": 8, "selectionRate": 0.02 }
+  },
+  {
+    "name": "Google", "industry": "Technology", "tier": "dream",
+    "roles": [{ "title": "Software Engineer", "requiredSkills": ["DSA", "Algorithms", "System Design", "Python", "C++"], "preferredSkills": ["Go", "Distributed Systems"], "minCGPA": 8.0, "interviewRounds": ["Online Assessment", "Phone Screen", "Onsite 1", "Onsite 2", "Onsite 3", "Googlyness"] }],
+    "hiringPattern": { "typicalMonths": [7, 8], "avgCandidatesSelected": 5, "selectionRate": 0.01 }
+  }
+]

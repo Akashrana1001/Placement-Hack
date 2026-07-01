@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Aarav Sharma",
+    "email": "aarav@test.com",
+    "department": "Computer Science",
+    "year": 4,
+    "skills": ["Java", "DSA", "React", "Node.js", "MongoDB", "SQL", "Git"],
+    "riskScore": 15,
+    "resumeText": "B.Tech Computer Science student with a 8.5 CGPA. Passionate about software development with strong fundamentals in Data Structures and Algorithms (DSA) and Object-Oriented Programming using Java. I have built full-stack web applications using the MERN stack (MongoDB, Express, React, Node.js). Completed a 2-month summer internship at a fintech startup where I optimized SQL database queries, reducing latency by 20%. Led a team of 4 in the Smart India Hackathon to build a real-time inventory management system. Proficient in Git, REST APIs, and agile development."
+  },
+  {
+    "name": "Priya Patel",
+    "email": "priya@test.com",
+    "department": "Computer Science",
+    "year": 4,
+    "skills": ["React", "Node.js", "MongoDB", "HTML", "CSS", "JavaScript"],
+    "riskScore": 45,
+    "resumeText": "Computer Science undergrad (7.2 CGPA) specializing in front-end and web development. Highly skilled in building responsive UIs using HTML, CSS, JavaScript, and React.js. I have a working knowledge of backend development with Node.js and MongoDB. I built a personal portfolio website and an e-commerce clone with a working shopping cart. While I love building web apps, I am currently spending more time practicing my logical problem-solving skills. I am looking for a role as a Frontend or Full Stack Developer."
+  },
+  {
+    "name": "Rahul Kumar",
+    "email": "rahul@test.com",
+    "department": "Information Technology",
+    "year": 4,
+    "skills": ["Python", "HTML", "C"],
+    "riskScore": 85,
+    "resumeText": "Final year IT student with a 6.0 CGPA. I have learned basic programming concepts in C and Python during my coursework. I know basic HTML for creating web pages. I participated in a college workshop on basic networking concepts. I am eager to learn new technologies and start my career in the IT industry. Looking for opportunities where I can get training and contribute to the company's success."
+  },
+  {
+    "name": "Neha Gupta",
+    "email": "neha@test.com",
+    "department": "Computer Science",
+    "year": 4,
+    "skills": ["Python", "TensorFlow", "Pandas", "NumPy", "Scikit-learn", "SQL"],
+    "riskScore": 30,
+    "resumeText": "CS Senior (7.8 CGPA) with a deep focus on Data Science and Machine Learning. Proficient in Python, Pandas, NumPy, and Scikit-learn. I have built predictive models for housing prices and customer churn using Random Forests and Linear Regression. Currently learning deep learning with TensorFlow and Keras. I have solid knowledge of SQL for data extraction and manipulation. My final year project involves building an NLP model for sentiment analysis on Twitter data. I am targeting Data Analyst or Machine Learning Engineer roles."
+  },
+  {
+    "name": "Vikram Singh",
+    "email": "vikram@test.com",
+    "department": "Electronics",
+    "year": 4,
+    "skills": ["C++", "Java", "Python"],
+    "riskScore": 60,
+    "resumeText": "Electronics and Communication student (7.5 CGPA) with a strong interest in software engineering. I have taught myself C++, core Java, and basic Python. I have a good understanding of microprocessors and embedded systems from my core subjects, but I want to transition into the IT sector. I built a mini-project in college using Arduino for home automation and wrote a simple Java console application for a library management system. I am a quick learner and adaptable to new programming environments."
+  }
+]

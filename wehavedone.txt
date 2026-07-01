@@ -1,0 +1,698 @@
+================================================================================
+  PLACEMENTPILOT — "WE HAVE DONE" / END-TO-END INTERVIEW BIBLE
+================================================================================
+Read this top-to-bottom and you will understand the ENTIRE project deeply,
+even if you have never seen the code. Every claim here is taken from the actual
+source files, not invented. Where something is NOT benchmarked, it says so.
+
+This file is written for two readers:
+  1. A beginner who wants to understand what is happening inside the project.
+  2. YOU, walking into an interview, who needs to answer any question fired.
+
+--------------------------------------------------------------------------------
+HOW TO USE THIS FILE
+--------------------------------------------------------------------------------
+  PART 1  — The 30-second pitch (memorize this)
+  PART 2  — The problem & the idea (the "why")
+  PART 3  — The tech stack, line by line, and WHY each was chosen
+  PART 4  — The big-picture architecture (the mental model)
+  PART 5  — End-to-end data flow (follow one resume through the whole system)
+  PART 6  — Every major component explained simply (the "what")
+  PART 7  — The 4 AI agents explained
+  PART 8  — The ReAct engine in depth (this is your crown jewel)
+  PART 9  — The RAG pipeline in depth
+  PART 10 — Concurrency, queues, real-time (BullMQ + Redis + Socket.io)
+  PART 11 — Data models (MongoDB schemas)
+  PART 12 — Security
+  PART 13 — Where OOP / SOLID / Design Patterns live IN THIS CODE
+  PART 14 — Interview Q&A — rapid fire (the questions they WILL ask)
+  PART 15 — Hard / senior-level questions + honest weaknesses
+  PART 16 — Glossary for absolute beginners
+
+
+================================================================================
+  PART 1 — THE 30-SECOND PITCH (MEMORIZE)
+================================================================================
+"PlacementPilot is an autonomous, agentic AI career coach for university
+placement cells. A student uploads a resume; our custom-built ReAct agent
+engine (NO LangChain) grounds itself in the resume using RAG, reasons step by
+step with an LLM, calls tools to find skill gaps, and produces a gap report +
+a 4-week prep plan. Separately, a background 'Sentinel' agent runs on a cron
+schedule, scans the whole student body for at-risk students, and pushes live
+red alerts to the placement officer's dashboard over WebSockets — with zero
+human action. The heavy AI work runs through a BullMQ/Redis job queue so the
+API never blocks, and every reasoning step streams live to the frontend."
+
+One-liner: "It's a proactive agentic system that finds at-risk students before
+they fail interviews, instead of after."
+
+
+================================================================================
+  PART 2 — THE PROBLEM & THE IDEA (THE "WHY")
+================================================================================
+THE PROBLEM:
+- Universities have thousands of students and only a handful of placement
+  officers (TPC = Training & Placement Cell).
+- Officers cannot manually review every resume or refresh dashboards all day.
+- So at-risk students are discovered TOO LATE — after they have already failed
+  interviews. A missed placement = real lost income for that student.
+
+THE INSIGHT (what makes this "agentic", not a ChatGPT wrapper):
+- A chatbot is REACTIVE: it waits for you to type.
+- Our system is PROACTIVE: the Sentinel agent wakes itself up on a schedule,
+  scans the database, decides who is at risk, and alerts staff on its own.
+- That autonomy ("acts without being prompted") is the whole pitch.
+
+WHAT IT ACTUALLY DELIVERS:
+1. Reads a resume -> grounded "gap report" (strong areas, weak areas, critical
+   gaps, and per-company match scores).
+2. Turns that report into a personalized 4-week prep plan with daily tasks.
+3. Watches for at-risk students on a schedule and pushes live alerts.
+4. Runs strict mock interviews that drill the exact weak areas found.
+
+
+================================================================================
+  PART 3 — THE TECH STACK, AND WHY EACH PIECE EXISTS
+================================================================================
+BACKEND (server/):
+- Node.js (ESM modules) + Express 5 -> the API + WebSocket host.
+  WHY: JavaScript end-to-end; Express 5 is the latest, async-error friendly.
+- MongoDB + Mongoose -> stores users, resumes, plans, interviews, alerts,
+  agent traces. WHY: flexible document shape fits nested "gapReport" / "weekly
+  plan" data that has no fixed columns.
+- Redis -> three different jobs:
+    (a) BullMQ job queue backing store,
+    (b) Pub/Sub message bus for live agent steps,
+    (c) short-term session memory + LLM response cache.
+  WHY: one in-memory store, very fast, already needed for the queue.
+- BullMQ -> the async job queue. Heavy AI work goes here so the web server
+  never freezes. WHY: production-grade, Redis-backed, supports retries/backoff.
+- Socket.io -> pushes live data to the browser (the "thought stream" + alerts).
+  WHY: WebSockets with auto-reconnect + rooms (per-job and per-role channels).
+- node-cron -> the heartbeat that fires the Sentinel every 30 minutes.
+- JWT (jsonwebtoken) + bcryptjs -> auth (login tokens + password hashing).
+- helmet, cors, express-rate-limit + rate-limit-redis -> security hardening.
+- multer + pdf-parse + mammoth -> accept resume uploads as PDF / DOCX / TXT.
+- zod -> request validation.
+- pino -> structured logging.
+
+LLM LAYER:
+- Groq `llama-3.1-8b-instant` in production (cloud, very fast).
+- Local Ollama `qwen2.5:3b` in dev (private, $0, offline).
+- AUTO-ROUTED: if GROQ_API_KEY is set -> Groq, else -> Ollama. Same interface
+  either way: `llm.generate(agentType, prompt)`.
+
+RAG MICROSERVICE (rag/, separate Python process):
+- Python + FastAPI -> tiny HTTP service on port 8001.
+- FAISS (IndexFlatIP) -> the vector index (one flat index per user).
+- sentence-transformers `all-MiniLM-L6-v2` -> turns text into 384-dim vectors.
+- RAGAS -> RAG quality evaluation harness (faithfulness, context precision).
+  WHY a separate Python service: the best embedding + vector libraries live in
+  Python; Node calls it over HTTP and degrades gracefully if it's down.
+
+FRONTEND (client/):
+- React 19 + Vite + Tailwind CSS.
+- @tanstack/react-query -> server state / data fetching.
+- socket.io-client -> receives the live agent stream + alerts.
+- recharts -> dashboard charts; framer-motion -> animations.
+
+KEY DESIGN CHOICE TO STATE PROUDLY:
+"We hand-wrote our own ReAct agent loop instead of using LangChain, so we have
+direct control over malformed-JSON parsing, tool-result unwrapping, and a
+forced-answer-on-timeout fallback. Frameworks hide exactly the failure modes
+that break small local LLMs."
+
+
+================================================================================
+  PART 4 — THE BIG-PICTURE ARCHITECTURE (MENTAL MODEL)
+================================================================================
+There are THREE running processes (plus the browser):
+
+  [1] API SERVER  (server/src/index.js, port 5000)
+        - Express routes, auth, file upload.
+        - Hosts Socket.io.
+        - Hosts the Redis->Socket.io Pub/Sub bridge.
+        - Starts the Sentinel cron.
+        - Adds jobs to the BullMQ queue (it does NOT run the AI itself).
+
+  [2] AGENT WORKER (server/src/workers/agent.worker.js)
+        - Pulls jobs off the BullMQ queue.
+        - Builds the right tools + prompt for the agent type.
+        - Runs the ReAct loop.
+        - Saves results to MongoDB.
+        - (In this deploy, also imported inside the API process so one host
+           runs both — see index.js `import './workers/agent.worker.js'`.)
+
+  [3] RAG SERVICE  (rag/main.py, port 8001, Python)
+        - /embed : chunk + embed a resume into that user's FAISS index.
+        - /query : return the top-k most relevant chunks for a query.
+
+  [B] BROWSER (client/)
+        - React app. Talks to API over HTTP, listens to Socket.io for live
+          steps and alerts.
+
+THE GLUE:
+  Redis sits in the middle. The worker PUBLISHES each reasoning step to a Redis
+  channel; the API's Pub/Sub bridge SUBSCRIBES and forwards it to the right
+  Socket.io room; the browser receives it instantly. This decoupling is why the
+  worker and the web server can be separate processes and still feel real-time.
+
+
+================================================================================
+  PART 5 — END-TO-END DATA FLOW (FOLLOW ONE RESUME)
+================================================================================
+Trace a single resume from upload to a finished prep plan. Memorize this path;
+it answers 80% of "walk me through your architecture" questions.
+
+ 1. Student logs in -> gets a JWT. Frontend stores it, sends it as
+    `Authorization: Bearer <token>` on every request.
+
+ 2. Student uploads resume text (or a PDF/DOCX/TXT file) to
+    POST /api/student/resume  ->  student.controller.js : uploadResume().
+
+ 3. Controller does THREE things:
+      a) Saves raw resume text to MongoDB (Resume model).
+      b) Fire-and-forget: calls the Python RAG service /embed to chunk + embed
+         the resume into FAISS. It does NOT await this — the HTTP response is
+         never blocked, and if Python is down it's caught and ignored.
+      c) Adds a BullMQ job: { agentType: 'recon', input: {resumeText}, ... }
+         and immediately returns a jobId to the browser.
+
+ 4. Browser takes the jobId, opens a Socket.io connection, and emits
+    `join:job <jobId>` so it joins that job's "room" to watch live steps.
+
+ 5. The WORKER picks up the recon job. It builds a fresh ToolRegistry, registers
+    the recon tools (queryVectorStore, parseResume, extractSkills,
+    matchCompanyReqs, + memory/db tools), loads the RECON system prompt, and
+    creates a ReActOrchestrator with maxIterations = 8.
+
+ 6. The ReAct LOOP runs (this is the core — see PART 8). Roughly:
+      Step 1: queryVectorStore  -> pulls grounded resume chunks from FAISS.
+      Step 2: parseResume       -> extracts skills/education (the resume text is
+                                   INJECTED directly, not trusted from the LLM).
+      Step 3: extractSkills     -> categorizes skills.
+      Step 4: matchCompanyReqs  -> scores resume vs company requirements.
+      Step 5: FINAL_ANSWER      -> a structured JSON gap report.
+    After EVERY step the orchestrator PUBLISHES the step to Redis channel
+    `agent:stream:<jobId>`.
+
+ 7. The PUB/SUB BRIDGE (in the API process) receives each published step and
+    forwards it via Socket.io to room <jobId>. The student dashboard's
+    "Thought Stream" box prints each thought/action/observation LIVE.
+
+ 8. When the loop returns FINAL_ANSWER, the worker's PERSISTENCE layer extracts
+    the first complete JSON object from the answer and:
+      - Saves the gapReport + companyMatches onto the latest Resume doc.
+      - Computes riskScore = min(100, criticalGaps*20 + weakAreas*10) and
+        updates the User.
+      - AUTO-CHAINS a 'strategy' job, passing the gap data straight in.
+
+ 9. The STRATEGY agent runs the same ReAct engine with plan-building tools and
+    produces a 4-week weeklyPlan, which the worker saves to the PrepPlan model.
+
+10. Meanwhile, INDEPENDENTLY, every 30 minutes node-cron fires the SENTINEL:
+      - Query: User.find({ role:'student', riskScore > 60 }).
+      - For each at-risk student, queue a 'sentinel' job.
+      - The sentinel agent evaluates risk and (via alert tools) publishes to the
+        Redis `tpc:alerts` channel.
+      - The Pub/Sub bridge forwards it to the Socket.io 'tpc' room -> the
+        TEACHER's dashboard flashes a real-time red alert. Nobody clicked
+        anything. THAT is the "wow" moment.
+
+11. Student can also start a MOCK INTERVIEW -> 'arena' agent. It drills the exact
+    weakAreas from the gap report, evaluates answers (reusing the same sessionId
+    so it remembers context), and saves a scored MockInterview summary.
+
+
+================================================================================
+  PART 6 — EVERY MAJOR COMPONENT, EXPLAINED SIMPLY
+================================================================================
+index.js (API entry):
+  Boots Express, security middleware (helmet/cors/json), connects DB, sets up
+  Socket.io, sets up the Pub/Sub bridge, starts the Sentinel cron, imports the
+  worker, mounts routes (/api/auth, /api/student, /api/tpc, /api/agent), mounts
+  the BullMQ admin dashboard at /admin/queues, exposes /api/health.
+
+agentQueue.js (the queue):
+  Defines the 'agent-jobs' BullMQ queue with: attempts=3, exponential backoff
+  (2s), auto-clean (keep last 50 completed / 20 failed). addAgentJob() is the
+  single entry point everything uses to enqueue work.
+
+agent.worker.js (the consumer):
+  A BullMQ Worker on 'agent-jobs' with concurrency=1 (deliberate — see PART 10).
+  Picks agent type, wires tools + prompt, runs orchestrator, then PERSISTS
+  results and AUTO-CHAINS the next agent. Also recomputes risk score.
+
+orchestrator.js (the brain — ReActOrchestrator class):
+  The hand-written ReAct loop. Builds prompt -> calls LLM -> parses ->
+  if FINAL_ANSWER, done; else execute tool, record observation, publish step,
+  repeat up to maxIterations. Has fallbacks for: LLM error, no-action, and
+  max-iterations-reached (always returns SOMETHING).
+
+parser.js / parseResponse():
+  Turns messy LLM text into {thought, action, actionInput, finalAnswer}. Built
+  defensively because small LLMs hallucinate markdown fences, drop the
+  FINAL_ANSWER prefix, append stray punctuation, or emit half-JSON.
+
+registry.js (ToolRegistry class):
+  A Map of toolName -> {name, description, handler}. executeTool() ALWAYS
+  returns { success, result } or { success, error } and NEVER throws — so one
+  bad tool call degrades the step instead of crashing the whole job. Each job
+  gets a FRESH registry so tools never leak between jobs.
+
+llm.js (config) + llm.service.js (service):
+  The unified LLM adapter. Same `generate()` interface over Groq OR Ollama.
+  Groq path tries a list of models and skips any that are rate-limited (429).
+  llm.service.js additionally MD5-hashes prompts and caches responses in Redis
+  for 1 hour (cache hit/miss stats tracked).
+
+rag.service.js:
+  Node's HTTP client to the Python RAG service. embedDocument() and
+  queryContext(). Every call is wrapped so failure returns null/[] — the agent
+  never blocks on RAG being available.
+
+pubsub.js (the real-time bridge):
+  A DEDICATED Redis subscriber (a subscriber connection can't run other Redis
+  commands). psubscribe('agent:stream:*') -> Socket.io room <jobId>.
+  subscribe('tpc:alerts') -> Socket.io room 'tpc'.
+
+socket.js:
+  Initializes Socket.io. Clients emit 'join:job' to enter a per-job room. The
+  getIO() guard throws if used before init (fail fast).
+
+sentinel.cron.js:
+  cron.schedule('*/30 * * * *', ...). Finds riskScore>60 students, queues a
+  sentinel job each. 30-min interval is chosen to respect Groq's free-tier
+  tokens-per-minute limit, not for throughput.
+
+middleware/auth.js:
+  protect()   -> verifies JWT, loads req.user (password stripped).
+  authorize(...roles) -> role gate (e.g. only 'tpc' can hit teacher routes).
+
+
+================================================================================
+  PART 7 — THE FOUR AI AGENTS (ALL ON ONE ENGINE)
+================================================================================
+All four share ONE ReActOrchestrator class. They differ only by (a) system
+prompt and (b) the tools registered. This is the "one engine, many agents"
+design — a textbook Strategy / Template-Method style separation.
+
+1. RECON  (resume analysis)
+   Tools: queryVectorStore (RAG, called FIRST), parseResume, extractSkills,
+          matchCompanyReqs.
+   Output: gap report JSON (strongAreas, weakAreas, criticalGaps,
+           recommendations, companyMatches[]). Auto-chains Strategy.
+
+2. STRATEGY (prep-plan builder)
+   Tools: plan tools.
+   Input: the gap data handed over from Recon.
+   Output: a 4-week weeklyPlan with dailyTasks -> saved to PrepPlan.
+
+3. SENTINEL (the proactive watchdog)
+   Tools: alert tools.
+   Trigger: cron, NOT a user. Evaluates a student's risk and dispatches a live
+            alert to the TPC dashboard via the tpc:alerts channel.
+
+4. ARENA (mock interviewer)
+   Tools: interview tools.
+   Behaviour: asks questions targeting the student's weakAreas, evaluates the
+              submitted answer (same sessionId = remembers context), and on
+              completion saves a scored MockInterview (overallScore, strengths,
+              weaknesses, recommendation).
+
+
+================================================================================
+  PART 8 — THE ReAct ENGINE IN DEPTH (YOUR CROWN JEWEL)
+================================================================================
+WHAT IS ReAct?
+"Reason + Act." The LLM alternates between THOUGHT (reasoning) and ACTION
+(calling a tool), reads the OBSERVATION (tool output), and loops until it emits
+a FINAL_ANSWER. It's how you make an LLM DO things, not just talk.
+
+THE LOOP (orchestrator.run), step by step:
+  for i in 0..maxIterations (8 in the worker):
+    1. buildPrompt(): systemPrompt + user input + the full scratchpad
+       (every prior Thought/Action/ActionInput/Observation joined as history).
+    2. ollama.generate(): call the LLM (Groq or Ollama under the hood).
+       - If it THROWS -> publish a final "LLM error" step and return. No crash.
+    3. parseResponse(): extract thought/action/actionInput/finalAnswer.
+    4. If finalAnswer present -> publish done step, return. (Exit early.)
+    5. If NO action AND NO finalAnswer -> the LLM is confused; treat its raw
+       text as the final answer and exit. (Never loop forever on confusion.)
+    6. Else EXECUTE the tool:
+       - Coerce actionInput safely to an object (it may be a string/null).
+       - SPECIAL CASE: if action == parseResume, INJECT the real resumeText
+         out-of-band. WHY: the LLM cannot reliably carry a big text blob inside
+         JSON, and would hallucinate. So we bypass the LLM for the actual data.
+       - registry.executeTool() returns {success, result|error}.
+       - UNWRAP the envelope so the LLM sees the RAW tool output, not the
+         wrapper. (A subtle bug if you forget: the model starts reasoning about
+         your internal {success:true} object instead of the data.)
+    7. Push {thought, action, actionInput, observation} into memory (scratchpad).
+    8. Publish the step to Redis (truncate observation to 300 chars for UI).
+  After the loop: if maxIterations hit, force completion with the best partial
+  observation we have. ALWAYS return something.
+
+WHY THE FALLBACKS MATTER (say this in the interview):
+Small/cheap LLMs are unreliable. The three guarantees are:
+  - Tools never throw (registry envelope) -> a bad tool degrades, doesn't crash.
+  - The loop is bounded (8 iters) -> no infinite spend / hang.
+  - Every exit path returns a finalAnswer -> the job always produces output.
+"We engineered for graceful degradation, not the happy path."
+
+THE PARSER (parser.js) is defensive on purpose:
+  - Strips hallucinated ```json fences.
+  - Detects FINAL_ANSWER first and exits early.
+  - Falls back to a trailing/raw JSON block if the LLM forgot the prefix.
+  - Strips stray punctuation off action names ("parseResume." -> "parseResume").
+  - Salvages half-formed key:value action inputs.
+
+PROMPT DISCIPLINE (recon.prompt.js):
+  - "Output ONE step at a time. Stop after ACTION_INPUT and wait."
+  - "Keep THOUGHT under 20 words." (small models ramble -> truncate the cost.)
+  - "queryVectorStore MUST be your first action." (force grounding first.)
+  - A fixed FORMAT block and an explicit STEPS path so the model has a rail.
+
+
+================================================================================
+  PART 9 — THE RAG PIPELINE IN DEPTH
+================================================================================
+RAG = Retrieval-Augmented Generation. Instead of trusting the LLM's memory,
+we RETRIEVE the most relevant real text first and feed it in as ground truth.
+
+WHY HERE: a resume is the source of truth. We don't want the model inventing
+skills the student doesn't have. So recon's FIRST action is queryVectorStore.
+
+INGESTION (on resume upload, fire-and-forget):
+  Node rag.service.embedDocument() -> POST /embed -> Python:
+    chunker.py : chunk_text(size=200 words, overlap=40 words)
+       - 200 words ~ 1400 chars, fits the embedding model.
+       - 40-word overlap keeps skill phrases that straddle a boundary intact.
+    embedder.py : embed_and_store()
+       - sentence-transformers all-MiniLM-L6-v2 -> 384-dim float32 vectors.
+       - faiss.normalize_L2(vectors) so inner product == cosine similarity.
+       - faiss.IndexFlatIP(384), one index PER (user_id, doc_type).
+       - Written to disk as {user}_{doc}.faiss + a .meta.json with the chunks.
+
+RETRIEVAL (inside the recon agent):
+  queryVectorStore tool -> rag.service.queryContext() -> POST /query -> Python:
+    retriever.py : retrieve()
+       - Loads that user's index (returns [] if none exists yet — safe).
+       - Embeds the query, normalizes, index.search(top_k=3).
+       - Returns the top-3 chunk strings.
+
+DESIGN POINTS TO QUOTE:
+  - "Per-user flat index, on local disk — no external vector DB." Simple,
+    private, $0, perfect for a per-student corpus that's tiny.
+  - "IndexFlatIP + L2-normalized vectors = exact cosine similarity." For small
+    corpora, exact (flat) search beats approximate; no recall loss.
+  - "RAG calls degrade to [] when Python is cold, so the API never blocks."
+  - Evaluation harness exists (RAGAS: faithfulness, context_precision) but
+    scores are NOT published — they need real traces + a judge-LLM key.
+    (Be honest about this; don't quote fake numbers.)
+
+
+================================================================================
+  PART 10 — CONCURRENCY, QUEUES, REAL-TIME
+================================================================================
+WHY A QUEUE AT ALL?
+An LLM call takes seconds. If the Express request handler awaited it inline, the
+event loop would be tied up and the server couldn't serve other users. So:
+  upload -> enqueue job -> return jobId INSTANTLY -> worker does the slow AI work
+  -> results stream back over WebSocket. The web tier stays responsive.
+
+BULLMQ CONFIG (agentQueue.js):
+  attempts: 3, exponential backoff (2s) -> transient failures auto-retry.
+  removeOnComplete/Fail -> keep the Redis queue from growing forever.
+
+WORKER concurrency: 1 (agent.worker.js).
+  DELIBERATE: it caps how fast we burn Groq free-tier tokens-per-minute, NOT a
+  throughput limit. Honest framing: "We traded throughput for staying inside the
+  free tier; to scale you'd raise concurrency and add more worker processes."
+
+REAL-TIME PATH (the decoupling):
+  worker -> redis.publish('agent:stream:<jobId>', step)
+         -> pubsub bridge (separate subscriber connection) receives it
+         -> io.to(<jobId>).emit('agent:step', step)
+         -> browser in that room renders it.
+  Same pattern for alerts on the 'tpc:alerts' channel -> 'tpc' room.
+  KEY FACT: a Redis connection in subscribe mode can't run normal commands, so
+  the bridge creates its OWN dedicated client.
+
+WHY PUB/SUB INSTEAD OF DIRECT EMIT?
+  The worker may be a SEPARATE process from the Socket.io server. The worker
+  can't emit to sockets it doesn't own. Redis Pub/Sub is the cross-process bus
+  that lets any worker broadcast to whichever server holds the socket.
+
+
+================================================================================
+  PART 11 — DATA MODELS (MONGODB / MONGOOSE)
+================================================================================
+User:
+  name, email(unique,indexed), password(hashed, select:false), role
+  (student|tpc), department, year, skills[], riskScore(0-100, default 0).
+  - pre-save hook hashes password with bcrypt (cost 12).
+  - methods: comparePassword(), generateAuthToken() (signs JWT with id+role).
+
+Resume:
+  userId(ref User), rawText, parsedData{education,experience,skills,projects,
+  certifications}, gapReport{strongAreas,weakAreas,criticalGaps,recommendations},
+  companyMatches[{companyName,matchScore,matchedSkills,missingSkills}].
+  - compound index {userId:1, createdAt:-1} -> "latest resume per user" is fast.
+
+PrepPlan:
+  userId, weeklyPlan[ {dailyTasks[...]} ], duration, targetCompanies[],
+  progress{tasksCompleted,totalTasks,currentWeek}.
+
+MockInterview:
+  userId, overallScore, questions[], strengths[], weaknesses[], recommendation.
+
+Company:
+  company requirements used by matchCompanyReqs to score the resume.
+
+Alert:
+  at-risk alerts surfaced to the TPC dashboard.
+
+AgentTrace (long-term memory):
+  jobId, agentType, totalSteps, full step trace. Saved via longTerm.js so you
+  can replay/audit what an agent did. (AgentTraces.jsx renders these.)
+
+MEMORY, TWO TIERS:
+  - shortTerm.js: Redis, key session:<id>, 30-min TTL, last 20 entries. Fast
+    mid-loop context (used by the multi-turn Arena interview).
+  - longTerm.js: MongoDB AgentTrace, permanent, auditable.
+
+
+================================================================================
+  PART 12 — SECURITY
+================================================================================
+WHAT'S IN PLACE:
+  - JWT auth on protected routes (Bearer token); password never selected back.
+  - bcrypt password hashing (cost 12).
+  - Role-based authorization (authorize('tpc') etc.).
+  - helmet (secure HTTP headers), cors locked to CORS_ORIGIN.
+  - Rate limiting (express-rate-limit backed by Redis), trust proxy=1 so the
+    real client IP is used behind the host's load balancer.
+  - Upload validation (type + min length) before processing.
+  - Secrets in env (MONGODB_URI, REDIS_URL, JWT_SECRET, GROQ_API_KEY).
+
+HONEST GAPS (good to volunteer — shows maturity):
+  - The /admin/queues BullMQ dashboard has NO auth ("localhost only for the
+    hackathon demo"). In prod you'd add basic-auth or an IP allowlist.
+  - No refresh-token rotation; single JWT with expiry.
+  - LLM output is parsed defensively but is still model-generated; for anything
+    higher-stakes you'd add schema validation (zod) on the FINAL_ANSWER too.
+
+
+================================================================================
+  PART 13 — WHERE OOP / SOLID / DESIGN PATTERNS LIVE IN THIS CODE
+================================================================================
+(Use these as concrete, "I built it" examples — far stronger than textbook ones.)
+
+OOP PILLARS:
+  - Encapsulation: ToolRegistry hides its internal Map (_tools); you only touch
+    registerTool/getTool/executeTool. Express controllers hide DB access.
+  - Abstraction: the LLM adapter hides Groq-vs-Ollama entirely behind
+    generate(); BullMQ hides queue internals behind addAgentJob().
+  - Polymorphism: ONE ReActOrchestrator runs four agents; behavior changes via
+    injected systemPrompt + toolRegistry. Same engine, different behavior.
+  - Inheritance: lighter here (composition is preferred) — see below.
+
+SOLID:
+  - S (Single Responsibility): parser.js only parses; registry.js only routes
+    tools; rag.service.js only talks to Python; pubsub.js only bridges. One job
+    each.
+  - O (Open/Closed): adding a 5th agent or a new tool = register a new tool /
+    prompt; you DON'T edit the orchestrator. Open for extension, closed for
+    modification.
+  - L (Liskov): every tool handler honors the same contract (async, returns a
+    result, wrapped by the registry into {success,...}), so any tool is
+    substitutable in the loop.
+  - I (Interface Segregation): each agent is given ONLY the tools it needs
+    (recon gets RAG tools, arena gets interview tools). No agent is forced to
+    carry tools it never calls.
+  - D (Dependency Inversion): the orchestrator depends on the ABSTRACTION
+    `ollama.generate()` and a generic toolRegistry, not on Groq or Ollama
+    concretely. Swap the backend via env, zero orchestrator changes. This is
+    the cleanest DI example in the codebase.
+
+DESIGN PATTERNS:
+  - Factory: createToolRegistry() builds a fresh registry; the worker is itself
+    a factory that assembles the right (tools + prompt) per agentType.
+  - Singleton: getIO() returns the one Socket.io instance; the Redis client and
+    the BullMQ queue are shared single instances.
+  - Observer / Pub-Sub: Redis publish/subscribe -> Socket.io rooms is a textbook
+    Observer (worker = publisher, dashboards = subscribers). OWN THIS EXAMPLE.
+  - Strategy: agent behavior is selected by swapping the prompt+tools "strategy"
+    into the same orchestrator at runtime.
+  - Adapter: llm.js adapts two different LLM APIs (Groq SDK, Ollama HTTP) to one
+    generate() interface.
+
+COMPOSITION OVER INHERITANCE:
+  The orchestrator is CONFIGURED with (composed of) a toolRegistry + prompt
+  rather than subclassed per agent. "has-a tools" beats "is-a agent subclass" —
+  less coupling, easier to add agents.
+
+
+================================================================================
+  PART 14 — INTERVIEW Q&A: RAPID FIRE (THEY WILL ASK THESE)
+================================================================================
+Q: What makes this "agentic" and not a ChatGPT wrapper?
+A: Autonomy + tool use. The ReAct loop reasons and CALLS TOOLS (DB, RAG, scoring)
+   to act on the world, and the Sentinel runs with NO human in the loop on a
+   cron schedule, deciding who to alert by itself.
+
+Q: Why build your own ReAct loop instead of LangChain?
+A: Control over failure modes. Small local LLMs emit malformed JSON, drop the
+   FINAL_ANSWER prefix, hallucinate markdown. We needed custom parsing, tool
+   envelope unwrapping, out-of-band data injection, and a guaranteed-answer
+   fallback. Frameworks abstract away exactly those edges.
+
+Q: Walk me through what happens when a student uploads a resume.
+A: (Recite PART 5: save -> embed to FAISS -> queue recon job -> ReAct loop with
+   live streaming -> persist gap report + risk score -> auto-chain strategy.)
+
+Q: Why a job queue?
+A: LLM calls are slow; awaiting them inline would block the event loop. BullMQ
+   lets us return a jobId instantly and process AI work in a worker, with
+   retries/backoff, while results stream back over WebSocket.
+
+Q: How does real-time streaming work?
+A: Worker publishes each step to a Redis channel; a dedicated subscriber bridge
+   forwards it to the matching Socket.io room; the browser (which joined that
+   room by jobId) renders it. Pub/Sub decouples worker process from socket
+   server.
+
+Q: What is RAG and why use it here?
+A: Retrieval-Augmented Generation. We chunk+embed the resume into FAISS and
+   retrieve the top-3 relevant chunks as ground truth BEFORE the LLM reasons, so
+   analysis is based on the real resume, not model guesswork.
+
+Q: Why FAISS IndexFlatIP with L2-normalized vectors?
+A: Normalizing makes inner product equal cosine similarity. Flat = exact search;
+   for a tiny per-user corpus, exact beats approximate with no recall loss and
+   no infra.
+
+Q: How do you handle the LLM returning garbage?
+A: Defensive parser (strips fences, salvages JSON), tools that never throw
+   (registry returns {success}), bounded iterations, and a forced final answer
+   on timeout. The job always produces output.
+
+Q: How is risk score computed?
+A: Deterministically: min(100, criticalGaps*20 + weakAreas*10), recomputed after
+   each recon analysis. Sentinel alerts when riskScore > 60.
+
+Q: Local vs cloud LLM?
+A: One adapter, one generate() interface. GROQ_API_KEY present -> Groq
+   llama-3.1-8b-instant (fast cloud). Absent -> local Ollama qwen2.5:3b (private,
+   free). Dependency Inversion in action.
+
+Q: How do agents remember context?
+A: Two tiers. Short-term in Redis (session:<id>, 30-min TTL, last 20 turns) for
+   the multi-turn mock interview; long-term in MongoDB AgentTrace for audit.
+
+Q: How do the four agents differ?
+A: They don't, mechanically — same ReActOrchestrator. They differ only by
+   injected system prompt + registered tools. Polymorphism/Strategy.
+
+
+================================================================================
+  PART 15 — HARD / SENIOR QUESTIONS + HONEST WEAKNESSES
+================================================================================
+Q: Concurrency is 1. Isn't that a bottleneck?
+A: Yes, deliberately — to stay under Groq's free-tier tokens-per-minute. To
+   scale: raise worker concurrency, run multiple worker processes (BullMQ
+   supports horizontal workers on the same Redis), and move off the free tier.
+
+Q: What happens if the worker crashes mid-job?
+A: BullMQ retries (attempts=3, exponential backoff). The job is re-queued. The
+   persistence step is idempotent-ish (recon updates the latest resume;
+   strategy upserts the plan), so a retry overwrites rather than duplicates.
+
+Q: The same process runs API + worker. Problem?
+A: For the demo, yes it's coupled (index.js imports the worker). It works
+   because BullMQ is process-agnostic; splitting them is just running
+   `npm run worker` separately — no code change. I'd split them in prod so a
+   heavy AI job can't affect API latency.
+
+Q: How do you stop the LLM hallucinating skills?
+A: Two guards: (1) RAG grounding — retrieve real resume chunks first; (2)
+   deterministic keyword extraction in parseResume against a known-skills bank,
+   plus injecting the real resume text out-of-band so the model can't substitute
+   its own.
+
+Q: Is the FINAL_ANSWER JSON validated?
+A: We extract the first balanced JSON object and defensively coerce every field
+   (arrays default to [], numbers checked). A stronger version would validate
+   with a zod schema and reject/repair invalid output — a known improvement.
+
+Q: Trace storage failure — does it kill the agent?
+A: No. saveAgentTrace catches and returns null. Observability must never break
+   the core flow.
+
+Q: Biggest weaknesses (volunteer these — it reads as senior):
+   - No auth on the BullMQ admin dashboard (demo-only).
+   - Performance/accuracy NOT formally benchmarked; harnesses exist
+     (stress-test.js, RAGAS) but no published numbers.
+   - concurrency=1 limits throughput.
+   - LLM output validation could be stricter (schema-enforced).
+   - API + worker share a process in this deploy.
+
+Q: What would you do next with more time?
+A: Split worker/API processes; add zod validation on agent output; benchmark
+   with RAGAS + the stress test; add auth to the admin dashboard; cache company
+   match computations; add WebSocket auth on the socket handshake.
+
+
+================================================================================
+  PART 16 — GLOSSARY FOR ABSOLUTE BEGINNERS
+================================================================================
+LLM            - Large Language Model (the AI that generates text).
+Agent          - An LLM wired to reason in steps and call tools to do real work.
+ReAct          - "Reason + Act": the loop of Thought -> Action -> Observation.
+Tool           - A function the agent can call (e.g. parseResume, queryVectorStore).
+RAG            - Retrieval-Augmented Generation: fetch real text, then generate.
+Embedding      - A list of numbers (here 384) representing text meaning.
+Vector / FAISS - FAISS stores embeddings and finds the most similar ones fast.
+Cosine sim     - A 0-1 measure of how similar two embeddings are.
+Chunk          - A small slice of a document (here ~200 words) that gets embedded.
+Queue (BullMQ) - A waiting line of background jobs processed by a worker.
+Worker         - A process that pulls jobs off the queue and runs them.
+Redis          - Fast in-memory store; here used for queue, pub/sub, cache, memory.
+Pub/Sub        - Publish/Subscribe messaging: publishers send, subscribers listen.
+Socket.io      - Library for live two-way browser<->server messages (WebSockets).
+Cron           - A scheduler that runs code at fixed times (every 30 min here).
+JWT            - JSON Web Token: a signed login token proving who you are.
+bcrypt         - A slow, salted password-hashing algorithm.
+Mongoose       - The library that maps JavaScript objects to MongoDB documents.
+Middleware     - Code that runs on a request before the route handler (auth, etc).
+ESM            - ECMAScript Modules: the modern `import/export` syntax in Node.
+Idempotent     - Running it twice has the same effect as once (safe to retry).
+TPC            - Training & Placement Cell (the university's placement officers).
+Sentinel       - Our proactive watchdog agent that runs on a schedule.
+Recon/Strategy/Arena - the analysis / planning / mock-interview agents.
+
+================================================================================
+  END. If you can explain PART 5 (the data flow) and PART 8 (the ReAct loop)
+  out loud from memory, you can defend this entire project in any interview.
+================================================================================

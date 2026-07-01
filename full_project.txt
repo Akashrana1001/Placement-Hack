@@ -1,0 +1,62 @@
+Here is the exact, step-by-step master script for presenting PlacementPilot to the hackathon judges. This script is designed to maximize the "wow factor" by proving that your system isn't just a basic ChatGPT wrapper, but a true autonomous agentic engine.
+
+🛠️ Phase 0: The Secret Setup (Before Judges Arrive)
+Do this 5 minutes before your presentation.
+
+Open two browser windows side-by-side:
+Left Window: Student Dashboard (logged in as your test student).
+Right Window: Teacher/TPC Dashboard (logged in as an admin).
+Ready the data: Have a sample resume text copied to your clipboard (something missing key skills like DSA or System Design).
+Trigger the Trap: Go to MongoDB Compass (or use a quick script) and manually set your test student's riskScore to 65 in the users collection.
+Start the Clock: Quickly restart your Node server (npm run dev) so the 2-minute Cron timer resets. Your goal is to trigger the Sentinel exactly when you reach Step 3 of your pitch.
+🎙️ Phase 1: The Hook (0:00 - 0:30)
+Smile, make eye contact, and explain the core problem.
+
+You say:
+
+"Hi Judges! Most university placement cells have thousands of students and only a handful of officers. It's impossible to give personalized coaching to everyone, and students only find out they are 'unemployable' after they fail their interviews. We built PlacementPilot to fix this. It’s a fully local, privacy-first Agentic AI Career Coach."
+
+🚀 Phase 2: The ReAct Architecture (0:30 - 1:15)
+Action: Go to the Left Window (Student Dashboard) and paste the resume text into the box. Hit "Analyze".
+
+You say:
+
+"Let me show you how it works. When a student uploads their resume, they aren't just talking to a standard LLM. They are triggering an autonomous workflow powered by a custom ReAct Orchestrator and BullMQ."
+
+Action: Point to the 'Thought Stream' box on the right side of the Student Dashboard where the terminal logs are printing out live.
+
+You say:
+
+"Under the hood, a local language model is 'reasoning' in real-time. You can see it here: it thinks about the inputs, chooses an action, actively calls database tools to verify skills, and finally computes a gap report. It identifies exactly what this student is missing compared to industry standards. And notice how fast it is—this is running entirely on local hardware, costing $0 in API fees."
+
+🔥 Phase 3: The "Wow Factor" Sentinel Demo (1:15 - 2:00)
+(Note: At this point, the 2-minute Node-Cron job should be very close to firing. Take your hands OFF the keyboard and mouse and step back slightly).
+
+You say:
+
+"But here is the real magic. PlacementPilot isn't just a reactive tool that waits for students to type questions. We built a proactive system called The Sentinel."
+
+"Teachers don't have time to constantly refresh dashboards looking for failing students..."
+
+(BAM! Right as you say this, the 2-minute Cron job naturally fires in the background. Your terminal logs spit out the Sentinel sequence, and suddenly, the Right Window (TPC Dashboard) flashes a real-time red alert via Socket.io).
+
+Action: Point at the Teacher Dashboard.
+
+You say:
+
+"And you just saw it happen live! Without me touching the keyboard, our background Cron job woke up, scanned the entire database, and realized this student's risk profile was degrading. It autonomously generated a BullMQ job, spun up a Sentinel Agent, evaluated the risk, and dispatched a real-time WebSocket alert directly to the Teacher's dashboard.
+
+The AI is actively managing the student body 24/7."
+
+💡 Phase 4: The Technical Close (2:00 - 2:30)
+You say:
+
+"To summarize our stack:
+
+We built our own Defensive Agentic Engine in Node.js instead of relying on heavy frameworks like LangChain.
+We handle heavy, asynchronous AI workloads using Redis and BullMQ.
+We stream the agent's 'thoughts' and alerts to the React frontend in real-time using Socket.io.
+We execute everything locally using Ollama natively on the machine."
+(End with a confident nod).
+
+"I'd be happy to answer any questions about the system architecture or data flow!"
