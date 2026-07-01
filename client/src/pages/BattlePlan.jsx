@@ -24,10 +24,27 @@ export const BattlePlan = () => {
   });
 
   const toggleTask = (weekId, taskId) => {
-    setLocalTasks(prev => ({
-      ...prev,
-      [`${weekId}-${taskId}`]: !prev[`${weekId}-${taskId}`]
-    }));
+    setLocalTasks(prev => {
+      const nextTasks = {
+        ...prev,
+        [`${weekId}-${taskId}`]: !prev[`${weekId}-${taskId}`]
+      };
+      
+      // Auto-expand next week if all tasks in current week are done
+      const currentWeek = plan?.weeklyPlan?.find(w => w.week === weekId);
+      if (currentWeek) {
+        const allDone = currentWeek.dailyTasks.every((_, tIdx) => {
+          if (tIdx === taskId) return nextTasks[`${weekId}-${taskId}`];
+          return nextTasks[`${weekId}-${tIdx}`] || currentWeek.dailyTasks[tIdx].completed;
+        });
+        
+        if (allDone && expandedWeek === weekId) {
+          setTimeout(() => setExpandedWeek(weekId + 1), 300);
+        }
+      }
+      
+      return nextTasks;
+    });
     // In a full app, you would mutate this to the backend here
   };
 

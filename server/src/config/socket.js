@@ -7,8 +7,9 @@ let io;
 export const setupSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: env.CORS_ORIGIN,
+      origin: true, // Allow all origins
       methods: ['GET', 'POST'],
+      credentials: true
     },
   });
 
