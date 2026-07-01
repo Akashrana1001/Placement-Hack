@@ -42,9 +42,13 @@ function scoreAnswer(answer, expectedKeywords) {
   const lowerAnswer = (answer || '').toLowerCase();
   const matched = expectedKeywords.filter(kw => lowerAnswer.includes(kw.toLowerCase()));
   const missed  = expectedKeywords.filter(kw => !lowerAnswer.includes(kw.toLowerCase()));
-  const score   = expectedKeywords.length > 0 
-    ? Math.max(2, Math.round((matched.length / expectedKeywords.length) * 10)) 
-    : 5;
+  const targetKeywords = Math.min(3, expectedKeywords.length);
+  
+  let score = 5;
+  if (expectedKeywords.length > 0) {
+    const rawScore = (matched.length / targetKeywords) * 10;
+    score = Math.min(10, Math.max(2, Math.round(rawScore)));
+  }
 
   let feedback;
   if (score >= 8)      feedback = '🔥 Excellent answer! Very strong understanding demonstrated.';

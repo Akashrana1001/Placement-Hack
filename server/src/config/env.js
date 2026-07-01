@@ -17,7 +17,7 @@ const envSchema = z.object({
   // Groq Cloud — used in production on Render
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().optional().default('llama-3.1-8b-instant'),
-  CORS_ORIGIN: z.string().url(),
+  CORS_ORIGIN: z.string(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -20,14 +20,16 @@ export const registerPlanTools = (registry) => {
     
     // Simple deterministic logic for hackathon speed
     for(let i=1; i<=durationWeeks; i++) {
-      const focusGap = gaps[i-1] || gaps[0] || "General Interview Prep";
+      const focusGap = gaps[(i-1) % gaps.length] || "General Interview Prep";
       plan.push({
         week: i,
         focus: `Mastering ${focusGap}`,
         dailyTasks: [
           { day: 1, topic: focusGap, task: `Read fundamentals of ${focusGap}`, estimatedHours: 2 },
           { day: 2, topic: focusGap, task: `Practice 5 easy problems on ${focusGap}`, estimatedHours: 3 },
-          { day: 3, topic: focusGap, task: `Build a small module using ${focusGap}`, estimatedHours: 4 }
+          { day: 3, topic: focusGap, task: `Build a small module using ${focusGap}`, estimatedHours: 4 },
+          { day: 4, topic: focusGap, task: `Review advanced concepts of ${focusGap}`, estimatedHours: 2 },
+          { day: 5, topic: focusGap, task: `Mock interview focused on ${focusGap}`, estimatedHours: 2 }
         ]
       });
     }

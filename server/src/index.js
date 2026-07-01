@@ -36,7 +36,13 @@ const httpServer = http.createServer(app);
 // 1. FOUNDATION MIDDLEWARE
 // ==========================================
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN }));
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow all origins for hackathon
+    callback(null, true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // ==========================================

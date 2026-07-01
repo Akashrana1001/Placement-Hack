@@ -13,9 +13,16 @@ import { Button } from '../components/common/Button';
 function localEvaluate(answer, expectedKeywords = []) {
   const lower = (answer || '').toLowerCase();
   const matched = expectedKeywords.filter(kw => lower.includes(kw.toLowerCase()));
-  const score = expectedKeywords.length > 0
-    ? Math.max(2, Math.round((matched.length / expectedKeywords.length) * 10))
-    : 5;
+  
+  // Make it more generous: hitting 2-3 keywords should be enough for a great score
+  const targetKeywords = Math.min(3, expectedKeywords.length);
+  
+  let score = 5;
+  if (expectedKeywords.length > 0) {
+    const rawScore = (matched.length / targetKeywords) * 10;
+    score = Math.min(10, Math.max(2, Math.round(rawScore)));
+  }
+
   const feedback =
     score >= 8 ? '🔥 Excellent! Very strong answer.' :
     score >= 6 ? '✅ Good answer. Could expand a bit more.' :
